@@ -5,7 +5,6 @@ import { db } from '../../db/connection.ts'
 import { schema } from '../../db/schema/index.ts'
 import { generateAnswer, generateEmbeddings } from '../../services/gemini.ts'
 
-// Set para controlar salas que já estão gerando resposta
 const generatingQuestions = new Set<string>()
 
 export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
@@ -25,7 +24,6 @@ export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
       const { roomId } = request.params
       const { question } = request.body
 
-      // Bloqueia múltiplas perguntas simultâneas pra mesma sala
       if (generatingQuestions.has(roomId)) {
         return reply
           .status(429)
@@ -35,11 +33,22 @@ export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
       generatingQuestions.add(roomId)
 
       try {
-        // Gera embeddings da pergunta
+        // 🔹 Salva a pergunta primeiro (sem resposta ainda)
+        const [insertedQuestion] = await db
+          .insert(schema.questions)
+          .values({ roomId, question, answer: null })
+          .returning()
+
+        // 🔹 Manda resposta imediata pro front (pra mostrar o "gerando resposta da IA")
+        reply.status(201).send({
+          questionId: insertedQuestion.id,
+          answer: null,
+        })
+
+        // 🔹 Agora gera embeddings e resposta da IA de forma assíncrona
         const embeddings = await generateEmbeddings(question)
         const embeddingsAsString = `[${embeddings.join(',')}]`
 
-        // Busca chunks relevantes
         const chunks = await db
           .select({
             id: schema.audioChunks.id,
@@ -63,29 +72,20 @@ export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
         if (chunks.length > 0) {
           const transcriptions = chunks.map((chunk) => chunk.transcription)
           answer = await generateAnswer(question, transcriptions)
+        } else {
+          answer = 'Não encontrei informações relevantes no conteúdo da aula.'
         }
 
-        // Insere pergunta + resposta no banco
-        const result = await db
-          .insert(schema.questions)
-          .values({ roomId, question, answer })
-          .returning()
+        // 🔹 Atualiza a pergunta com a resposta gerada
+        await db
+          .update(schema.questions)
+          .set({ answer })
+          .where(eq(schema.questions.id, insertedQuestion.id))
 
-        const insertedQuestion = result[0]
-
-        if (!insertedQuestion) {
-          throw new Error('Falha ao criar nova pergunta.')
-        }
-
-        return reply.status(201).send({
-          questionId: insertedQuestion.id,
-          answer,
-        })
+        console.log(`✅ Resposta gerada para pergunta ${insertedQuestion.id}`)
       } catch (err) {
-        console.error(err)
-        return reply.status(500).send({ message: 'Erro ao criar pergunta' })
+        console.error('❌ Erro ao gerar resposta:', err)
       } finally {
-        // Libera a sala do bloqueio
         generatingQuestions.delete(roomId)
       }
     }

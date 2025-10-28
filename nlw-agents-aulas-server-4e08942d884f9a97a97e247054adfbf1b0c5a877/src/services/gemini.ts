@@ -1,65 +1,49 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { env } from "../env.ts";
 
-const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY,
-});
-
-export async function transcribeAudio(audioAsBase64: string, mimeType: string) {
-  const response = await openai.audio.transcriptions.create({
-    file: Buffer.from(audioAsBase64, "base64"),
-    model: "whisper-1",
-  });
-
-  if (!response.text) {
-    throw new Error("Não foi possível converter o áudio");
-  }
-
-  return response.text;
-}
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
 export async function generateEmbeddings(text: string) {
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
+  try {
+    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    const result = await model.embedContent(text);
 
-  if (!response.data?.[0].embedding) {
+    if (!result.embedding?.values) throw new Error("Embedding não retornado pela API Gemini");
+
+    return result.embedding.values;
+  } catch (err) {
+    console.error("Erro ao gerar embeddings:", err);
     throw new Error("Não foi possível gerar os embeddings.");
   }
-
-  return response.data[0].embedding;
 }
 
 export async function generateAnswer(question: string, transcriptions: string[]) {
-  const context = transcriptions.join("\n\n");
+  try {
+    const context = transcriptions.join("\n\n");
 
-  const prompt = `
-Com base no texto fornecido abaixo como contexto, responda a pergunta de forma clara e precisa em português do Brasil.
+    const prompt = `
+Baseado no conteúdo da aula abaixo, responda em português do Brasil.
 
-CONTEXTO:
+CONTEÚDO DA AULA:
 ${context}
 
 PERGUNTA:
 ${question}
 
-INSTRUÇÕES:
-- Use apenas informações contidas no contexto enviado;
-- Se a resposta não for encontrada no contexto, apenas responda que não possui informações suficientes para responder;
-- Seja objetivo;
-- Mantenha um tom educativo e profissional;
-- Cite trechos relevantes do contexto se apropriado;
-- Se for citar o contexto, utilize o termo "conteúdo da aula".
-  `.trim();
+Regras:
+- Só use informações do conteúdo da aula.
+- Se não souber, diga que não há informação suficiente.
+- Seja claro e objetivo.
+- Use tom educativo e direto.
+`.trim();
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-  });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const response = await model.generateContent(prompt);
+    const text = response.response.text();
 
-  if (!response.choices?.[0].message?.content) {
-    throw new Error("Falha ao gerar resposta pelo OpenAI");
+    return text;
+  } catch (err) {
+    console.error("Erro ao gerar resposta:", err);
+    throw new Error("Falha ao gerar resposta com Gemini");
   }
-
-  return response.choices[0].message.content;
 }
