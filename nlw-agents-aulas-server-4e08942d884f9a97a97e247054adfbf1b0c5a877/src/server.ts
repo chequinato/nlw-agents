@@ -24,19 +24,18 @@ async function start() {
 
     // Configura upload de arquivos
     app.register(fastifyMultipart, {
-      limits: {
-        fileSize: 20 * 1024 * 1024, // 20MB
-      },
+      limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
     })
 
     // Compilers do fastify-type-provider-zod
     app.setSerializerCompiler(serializerCompiler)
     app.setValidatorCompiler(validatorCompiler)
 
-    // Rota de teste
-    app.get('/health', async () => {
-      return { status: 'ok' }
-    })
+    // Rota de teste raiz
+    app.get('/', async () => ({ message: 'API rodando!' }))
+
+    // Rota de health check
+    app.get('/health', async () => ({ status: 'ok' }))
 
     // Rotas
     app.register(getRoomsRoute)
@@ -45,7 +44,6 @@ async function start() {
     app.register(createQuestionRoute)
     app.register(uploadAudioRoute)
 
-    // Start do servidor
     await app.listen({ port: env.PORT })
     console.log(`🚀 Server running at http://localhost:${env.PORT}`)
   } catch (err) {
