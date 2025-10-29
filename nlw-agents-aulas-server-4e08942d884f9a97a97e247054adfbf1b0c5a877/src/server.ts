@@ -13,29 +13,45 @@ import { getRoomQuestions } from './http/routes/get-room-questions.ts'
 import { getRoomsRoute } from './http/routes/get-rooms.ts'
 import { uploadAudioRoute } from './http/routes/upload-audio.ts'
 
-const app = fastify().withTypeProvider<ZodTypeProvider>()
+async function start() {
+  try {
+    const app = fastify().withTypeProvider<ZodTypeProvider>()
 
-app.register(fastifyCors, {
-  origin: 'http://localhost:5173',
-})
+    // Configura CORS
+    app.register(fastifyCors, {
+      origin: 'http://localhost:5173',
+    })
 
-app.register(fastifyMultipart, {
-  limits: {
-    fileSize: 20 * 1024 * 1024
+    // Configura upload de arquivos
+    app.register(fastifyMultipart, {
+      limits: {
+        fileSize: 20 * 1024 * 1024, // 20MB
+      },
+    })
+
+    // Compilers do fastify-type-provider-zod
+    app.setSerializerCompiler(serializerCompiler)
+    app.setValidatorCompiler(validatorCompiler)
+
+    // Rota de teste
+    app.get('/health', async () => {
+      return { status: 'ok' }
+    })
+
+    // Rotas
+    app.register(getRoomsRoute)
+    app.register(createRoomRoute)
+    app.register(getRoomQuestions)
+    app.register(createQuestionRoute)
+    app.register(uploadAudioRoute)
+
+    // Start do servidor
+    await app.listen({ port: env.PORT })
+    console.log(`🚀 Server running at http://localhost:${env.PORT}`)
+  } catch (err) {
+    console.error('❌ Erro ao iniciar o servidor:', err)
+    process.exit(1)
   }
-})
+}
 
-app.setSerializerCompiler(serializerCompiler)
-app.setValidatorCompiler(validatorCompiler)
-
-app.get('/health', () => {
-  return 'OK'
-})
-
-app.register(getRoomsRoute)
-app.register(createRoomRoute)
-app.register(getRoomQuestions)
-app.register(createQuestionRoute)
-app.register(uploadAudioRoute)
-
-app.listen({ port: env.PORT })
+start()
