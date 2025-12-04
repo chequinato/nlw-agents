@@ -1,39 +1,39 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "start": "node --env-file .env --experimental-strip-types --no-warnings src/server.ts",
-    "dev": "node --env-file .env --experimental-strip-types --no-warnings --watch src/server.ts",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node --env-file .env --experimental-strip-types --no-warnings src/db/seed.ts"
+    "db:seed": "node --env-file .env --experimental-strip-types --no-warnings dist/db/seed.js",
+    "list-models": "tsx src/listModels.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "dependencies": {
+    "@fastify/cors": "11.0.1",
+    "@fastify/multipart": "9.0.3",
+    "@google/genai": "^1.27.0",
+    "@google/generative-ai": "^0.24.1",
+    "@prisma/client": "^5.14.0",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "0.44.2",
+    "fastify": "5.4.0",
+    "fastify-type-provider-zod": "5.0.1",
+    "openai": "^6.9.1",
+    "postgres": "3.4.7",
+    "prisma": "^5.14.0",
+    "zod": "3.25.67"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.0.5",
     "@types/node": "^24.0.8",
     "drizzle-kit": "0.31.4",
     "drizzle-seed": "0.3.1",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.9.3",
     "ultracite": "5.0.27"
-  },
-  "dependencies": {
-    "@fastify/cors": "11.0.1",
-    "@fastify/multipart": "9.0.3",
-    "@google/genai": "1.8.0",
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.2.3",
-    "drizzle-orm": "0.44.2",
-    "fastify": "5.4.0",
-    "fastify-type-provider-zod": "5.0.1",
-    "openai": "^6.7.0",
-    "postgres": "3.4.7",
-    "zod": "3.25.67"
   }
 }

@@ -1,52 +1,38 @@
-import { GoogleGenAI } from "@google/genai";
-import { env } from "../env.ts";
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
-// Inicializa o cliente
-const client = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
-// === EMBEDDINGS ===
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.0-flash",
+  generationConfig: {
+    temperature: 0.2,
+    maxOutputTokens: 500,
+  },
+})
+
+const embeddingModel = genAI.getGenerativeModel({
+  model: "embedding-001", // embeddings compatível com v1beta
+})
+
 export async function generateEmbeddings(text: string) {
-  try {
-    const model = client.models.get("textembedding-gecko-001");
-    const result = await model.embed({ text });
-
-    if (!result.embedding?.values) {
-      throw new Error("Embedding não retornado pela API Gemini");
-    }
-
-    return result.embedding.values;
-  } catch (err) {
-    console.error("❌ Erro ao gerar embeddings:", err);
-    throw new Error("Não foi possível gerar os embeddings.");
-  }
+  const result = await embeddingModel.embedContent(text)
+  return result.embedding.values
 }
 
-// === GERA RESPOSTA ===
 export async function generateAnswer(question: string, transcriptions: string[]) {
   try {
-    const context = transcriptions.join("\n\n");
-    const prompt = `
-Baseado no conteúdo da aula abaixo, responda em português do Brasil.
+    const prompt =
+      transcriptions.length > 0
+        ? `A seguir estão trechos da aula:\n\n${transcriptions.join(
+            "\n"
+          )}\n\nPergunta: ${question}\nResponda:`
+        : `Pergunta: ${question}`
 
-CONTEÚDO DA AULA:
-${context}
+    const result = await model.generateContent(prompt)
 
-PERGUNTA:
-${question}
-
-Regras:
-- Só use informações do conteúdo da aula.
-- Se não souber, diga que não há informação suficiente.
-- Seja claro e objetivo.
-- Use tom educativo e direto.
-`.trim();
-
-    const model = client.models.get("gemini-1.5-turbo");
-    const response = await model.generateContent({ text: prompt });
-
-    return response.output_text ?? "";
+    return result.response.text()
   } catch (err) {
-    console.error("❌ Erro ao gerar resposta:", err);
-    throw new Error("Falha ao gerar resposta com Gemini.");
+    console.error("❌ Erro ao chamar Gemini:", err)
+    throw new Error("Não foi possível gerar a resposta do Gemini.")
   }
 }

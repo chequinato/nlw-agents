@@ -1,93 +1,77 @@
-import { and, eq, sql } from 'drizzle-orm'
-import type { FastifyPluginCallbackZod } from 'fastify-type-provider-zod'
-import { z } from 'zod/v4'
-import { db } from '../../db/connection.ts'
-import { schema } from '../../db/schema/index.ts'
-import { generateAnswer, generateEmbeddings } from '../../services/gemini.ts'
+// src/http/routes/create-question.ts
+import { FastifyInstance } from 'fastify'
+import { z } from 'zod'
+import { eq, asc } from 'drizzle-orm'
+import { db } from '../../db/connection'
+import { schema } from '../../db/schema/index'
+import { generateAIResponse } from '../../services/openai'
+import { generateAnswer } from '../../services/gemini'
 
-const generatingQuestions = new Set<string>()
+export async function createQuestion(app: FastifyInstance) {
+  app.post('/rooms/:roomId/questions', async (request, reply) => {
+    const bodySchema = z.object({
+      question: z.string(),
+    })
+    const { question } = bodySchema.parse(request.body)
+    const { roomId } = request.params as { roomId: string }
 
-export const createQuestionRoute: FastifyPluginCallbackZod = (app) => {
-  app.post(
-    '/rooms/:roomId/questions',
-    {
-      schema: {
-        params: z.object({
-          roomId: z.string(),
-        }),
-        body: z.object({
-          question: z.string().min(1),
-        }),
-      },
-    },
-    async (request, reply) => {
-      const { roomId } = request.params
-      const { question } = request.body
+    try {
+      // Busca transcrições anteriores (contexto da aula)
+      const audioChunks = await db
+        .select()
+        .from(schema.audioChunks)
+        .where(eq(schema.audioChunks.roomId, roomId))
+        .orderBy(asc(schema.audioChunks.createdAt))
 
-      if (generatingQuestions.has(roomId)) {
-        return reply
-          .status(429)
-          .send({ message: 'Ainda gerando resposta para esta sala' })
+      const context = audioChunks
+        .map((chunk) => chunk.transcription)
+        .join('\n\n')
+
+      let aiResponse = ''
+
+      // Tenta OpenAI primeiro
+      try {
+        aiResponse = await generateAIResponse(question, context || undefined)
+        console.log('✅ OpenAI respondeu com sucesso')
+      } catch (openaiError: any) {
+        console.warn('⚠️ OpenAI falhou, usando Gemini:', openaiError?.message || openaiError)
+        
+        // Fallback para Gemini
+        try {
+          const transcriptions = audioChunks.map((chunk) => chunk.transcription)
+          aiResponse = await generateAnswer(question, transcriptions)
+          console.log('✅ Gemini respondeu com sucesso')
+        } catch (geminiError) {
+          console.error('❌ Ambas as IAs falharam:', geminiError)
+          aiResponse = 'Desculpe, não consegui processar sua pergunta no momento. Tente novamente mais tarde.'
+        }
       }
 
-      generatingQuestions.add(roomId)
-
-      try {
-        // 🔹 Salva a pergunta primeiro (sem resposta ainda)
-        const [insertedQuestion] = await db
-          .insert(schema.questions)
-          .values({ roomId, question, answer: null })
-          .returning()
-
-        // 🔹 Manda resposta imediata pro front (pra mostrar o "gerando resposta da IA")
-        reply.status(201).send({
-          questionId: insertedQuestion.id,
-          answer: null,
+      // Salva no banco com Drizzle
+      const [savedQuestion] = await db
+        .insert(schema.questions)
+        .values({
+          roomId,
+          question,
+          answer: aiResponse,
+          createdAt: new Date(),
+        })
+        .returning({
+          id: schema.questions.id,
+          question: schema.questions.question,
+          answer: schema.questions.answer,
         })
 
-        // 🔹 Agora gera embeddings e resposta da IA de forma assíncrona
-        const embeddings = await generateEmbeddings(question)
-        const embeddingsAsString = `[${embeddings.join(',')}]`
-
-        const chunks = await db
-          .select({
-            id: schema.audioChunks.id,
-            transcription: schema.audioChunks.transcription,
-            similarity: sql<number>`1 - (${schema.audioChunks.embeddings} <=> ${embeddingsAsString}::vector)`,
-          })
-          .from(schema.audioChunks)
-          .where(
-            and(
-              eq(schema.audioChunks.roomId, roomId),
-              sql`1 - (${schema.audioChunks.embeddings} <=> ${embeddingsAsString}::vector) > 0.7`
-            )
-          )
-          .orderBy(
-            sql`${schema.audioChunks.embeddings} <=> ${embeddingsAsString}::vector`
-          )
-          .limit(3)
-
-        let answer: string | null = null
-
-        if (chunks.length > 0) {
-          const transcriptions = chunks.map((chunk) => chunk.transcription)
-          answer = await generateAnswer(question, transcriptions)
-        } else {
-          answer = 'Não encontrei informações relevantes no conteúdo da aula.'
-        }
-
-        // 🔹 Atualiza a pergunta com a resposta gerada
-        await db
-          .update(schema.questions)
-          .set({ answer })
-          .where(eq(schema.questions.id, insertedQuestion.id))
-
-        console.log(`✅ Resposta gerada para pergunta ${insertedQuestion.id}`)
-      } catch (err) {
-        console.error('❌ Erro ao gerar resposta:', err)
-      } finally {
-        generatingQuestions.delete(roomId)
-      }
+      return reply.status(201).send({
+        success: true,
+        id: savedQuestion.id,
+        answer: savedQuestion.answer,
+      })
+    } catch (error) {
+      console.error('Erro ao processar pergunta:', error)
+      return reply.status(500).send({
+        error: 'Erro ao processar pergunta.',
+      })
     }
-  )
+  })
 }

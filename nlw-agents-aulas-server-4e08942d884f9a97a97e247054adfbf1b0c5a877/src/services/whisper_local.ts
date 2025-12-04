@@ -1,26 +1,27 @@
-import { spawn } from "child_process";
+import { execFile } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Criar __dirname compatível com ESM
+// Corrige __dirname no ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export async function transcribeAudio(filePath: string): Promise<string> {
+/**
+ * Transcreve um arquivo de áudio usando Whisper local via Python
+ * @param audioPath Caminho do arquivo de áudio
+ * @returns Transcrição como string
+ */
+export function transcribeAudio(audioPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.resolve(__dirname, "whisper_local.py");
 
-    const pythonProcess = spawn("python", [scriptPath, filePath]);
+    execFile("python", [scriptPath, audioPath], (err, stdout, stderr) => {
+      if (err) {
+        console.error("❌ Erro ao chamar Whisper:", err, stderr);
+        return reject(new Error(stderr || "Erro desconhecido ao chamar Whisper"));
+      }
 
-    let output = "";
-    let error = "";
-
-    pythonProcess.stdout.on("data", (data) => output += data.toString());
-    pythonProcess.stderr.on("data", (data) => error += data.toString());
-
-    pythonProcess.on("close", (code) => {
-      if (code !== 0) reject(new Error(`Erro ao transcrever áudio:\n${error}`));
-      else resolve(output.trim());
+      resolve(stdout.trim());
     });
   });
 }
