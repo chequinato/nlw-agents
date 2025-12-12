@@ -1,11 +1,11 @@
 // src/http/routes/create-question.ts
-import { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq, asc } from 'drizzle-orm'
-import { db } from '../../db/connection'
-import { schema } from '../../db/schema/index'
-import { generateAIResponse } from '../../services/openai'
-import { generateAnswer } from '../../services/gemini'
+import { db } from '../../db/connection.js'
+import { schema } from '../../db/schema/index.js'
+import { generateAIResponse } from '../../services/openai.js'
+import { generateAnswer } from '../../services/gemini.js'
 
 export async function createQuestion(app: FastifyInstance) {
   app.post('/rooms/:roomId/questions', async (request, reply) => {

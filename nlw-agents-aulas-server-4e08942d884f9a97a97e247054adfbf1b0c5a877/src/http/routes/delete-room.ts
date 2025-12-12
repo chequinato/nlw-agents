@@ -1,8 +1,8 @@
-import { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
-import { db } from '../../db/connection'
-import { schema } from '../../db/schema/index'
+import { db } from '../../db/connection.js'
+import { schema } from '../../db/schema/index.js'
 
 export async function deleteRoom(app: FastifyInstance) {
   app.delete('/rooms/:roomId', async (request, reply) => {

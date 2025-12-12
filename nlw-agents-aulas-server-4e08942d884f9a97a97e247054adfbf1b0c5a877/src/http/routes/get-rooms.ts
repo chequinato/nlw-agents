@@ -1,7 +1,7 @@
 import { count, eq } from 'drizzle-orm'
 import type { FastifyPluginCallbackZod } from 'fastify-type-provider-zod'
-import { db } from '../../db/connection.ts'
-import { schema } from '../../db/schema/index.ts'
+import { db } from '../../db/connection'
+import { schema } from '../../db/schema/index'
 
 export const getRoomsRoute: FastifyPluginCallbackZod = (app) => {
   app.get('/rooms', async () => {

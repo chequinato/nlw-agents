@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node --env-file .env --experimental-strip-types --no-warnings dist/db/seed.js",
-    "list-models": "tsx src/listModels.ts"
+    "list-models": "tsx src/listModels.ts",
+    "build": "tsc && tscpaths -p tsconfig.json -s ./src -o ./dist"
   },
   "dependencies": {
     "@fastify/cors": "11.0.1",
@@ -32,6 +33,7 @@
     "@types/node": "^24.0.8",
     "drizzle-kit": "0.31.4",
     "drizzle-seed": "0.3.1",
+    "tscpaths": "^0.0.9",
     "tsx": "^4.7.0",
     "typescript": "^5.9.3",
     "ultracite": "5.0.27"

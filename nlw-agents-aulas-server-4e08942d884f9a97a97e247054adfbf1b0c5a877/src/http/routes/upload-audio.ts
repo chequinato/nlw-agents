@@ -3,11 +3,11 @@ import type { FastifyPluginCallbackZod } from 'fastify-type-provider-zod'
 import { z } from 'zod/v4'
 import fs from 'fs'
 import path from 'path'
-import { db } from '../../db/connection.ts'
-import { schema } from '../../db/schema/index.ts'
+import { db } from '../../db/connection.js'
+import { schema } from '../../db/schema/index.js'
 import { eq, asc } from 'drizzle-orm'
-import { transcribeAudio } from '../../services/whisper_local.ts'
-import { generateAnswer } from '../../services/gemini.ts'
+import { transcribeAudio } from '../../services/whisper_local.js'
+import { generateAnswer } from '../../services/gemini.js'
 
 export const uploadAudioRoute: FastifyPluginCallbackZod = (app) => {
   app.post(
@@ -32,30 +32,40 @@ export const uploadAudioRoute: FastifyPluginCallbackZod = (app) => {
         .then((buffer) => fs.promises.writeFile(tempPath, buffer))
 
       try {
-        const transcription = await transcribeAudio(tempPath)
-        let aiResponse = ''
-        
-        // Usa apenas Gemini para evitar quota da OpenAI
-        try {
-          const previousTranscriptions = await db
-            .select()
-            .from(schema.audioChunks)
-            .where(eq(schema.audioChunks.roomId, roomId))
-            .orderBy(asc(schema.audioChunks.createdAt))
-            .then((rows) => rows.map((r) => r.transcription))
+        // 1️⃣ Transcreve o áudio
+        let transcription = await transcribeAudio(tempPath)
 
-          aiResponse = await generateAnswer(
-            transcription,
-            previousTranscriptions
-          )
+        if (!transcription || transcription.trim() === '') {
+          transcription = '[Áudio não pôde ser transcrito]'
+        }
+
+        // 2️⃣ Busca transcrições anteriores
+        const previousTranscriptions = await db
+          .select()
+          .from(schema.audioChunks)
+          .where(eq(schema.audioChunks.roomId, roomId))
+          .orderBy(asc(schema.audioChunks.createdAt))
+          .then((rows) => rows.map((r) => r.transcription).filter(t => t && t.trim() !== ''))
+
+        // 3️⃣ Junta todas as transcrições em um array
+        const allTranscriptions = [...previousTranscriptions, transcription]
+
+        // 4️⃣ Pergunta do usuário (pode vir do frontend ou usar o próprio áudio como base)
+        const question = transcription.slice(0, 200) // primeiros 200 caracteres como "pergunta"
+
+        // 5️⃣ Chama o Gemini
+        let aiResponse = ''
+        try {
+          aiResponse = await generateAnswer(question, allTranscriptions)
         } catch (geminiError) {
           console.error('❌ Gemini falhou:', geminiError)
           aiResponse = 'Desculpe, não consegui processar sua pergunta no momento. Tente novamente mais tarde.'
         }
 
-        // Embeddings padrão (sem usar Gemini embeddings por enquanto)
+        // 6️⃣ Embeddings padrão (temporário)
         const embeddings = Array(768).fill(0)
 
+        // 7️⃣ Salva no banco
         const result = await db
           .insert(schema.audioChunks)
           .values({
@@ -68,6 +78,7 @@ export const uploadAudioRoute: FastifyPluginCallbackZod = (app) => {
         const chunk = result[0]
         if (!chunk) throw new Error('Erro ao salvar chunk de áudio')
 
+        // 8️⃣ Retorna resultado
         return reply.status(201).send({
           chunkId: chunk.id,
           transcription,
