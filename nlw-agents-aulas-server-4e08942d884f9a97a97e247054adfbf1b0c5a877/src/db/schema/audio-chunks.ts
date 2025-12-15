@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, uuid, vector } from 'drizzle-orm/pg-core'
-import { rooms } from './rooms'
+import { rooms } from './rooms.js'
 
 export const audioChunks = pgTable('audio_chunks', {
   id: uuid().primaryKey().defaultRandom(),

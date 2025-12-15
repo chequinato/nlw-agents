@@ -22,7 +22,6 @@
     "skipLibCheck": true,
     "strictNullChecks": true,
 
-    "allowImportingTsExtensions": false,
     "noEmit": false,
 
     // Essa opção moderna resolve o problema de extensão automaticamente

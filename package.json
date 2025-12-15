@@ -1,7 +1,24 @@
 {
+  "name": "server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc && tscpaths -p tsconfig.json -s ./src -o ./dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx db/seed.ts",
+    "list-models": "tsx src/listModels.ts"
+  },
   "devDependencies": {
-    "@types/node": "^24.9.2",
+    "@types/node": "^24.10.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "tsx": "^3.12.7",
+    "tscpaths": "^0.0.12"
+  },
+  "dependencies": {
+    "drizzle-kit": "^1.0.0"
   }
 }

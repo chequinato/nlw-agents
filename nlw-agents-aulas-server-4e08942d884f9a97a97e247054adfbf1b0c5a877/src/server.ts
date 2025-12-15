@@ -7,13 +7,13 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod'
 
-import { env } from './env'
-import { createQuestion } from './http/routes/create-question'   // <- CORRETO
-import { createRoomRoute } from './http/routes/create-room'
-import { getRoomQuestions } from './http/routes/get-room-questions'
-import { getRoomsRoute } from './http/routes/get-rooms'
-import { uploadAudioRoute } from './http/routes/upload-audio'
-import { deleteRoom } from './http/routes/delete-room'
+import { env } from './env.js'
+import { createQuestion } from './http/routes/create-question.js'   // <- CORRETO
+import { createRoomRoute } from './http/routes/create-room.js'
+import { getRoomQuestions } from './http/routes/get-room-questions.js'
+import { getRoomsRoute } from './http/routes/get-rooms.js'
+import { uploadAudioRoute } from './http/routes/upload-audio.js'
+import { deleteRoom } from './http/routes/delete-room.js'
 
 async function start() {
   try {
