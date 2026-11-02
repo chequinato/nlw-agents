@@ -1,0 +1,39 @@
+services:
+  nlw-agents-pg:
+    image: pgvector/pgvector:pg17
+    container_name: nlw-agents-pg
+    environment:
+      POSTGRES_USER: docker
+      POSTGRES_PASSWORD: docker
+      POSTGRES_DB: agents
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - nlw-agents-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docker -d agents"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Opcional: `docker compose --profile app up` sobe a API junto com o banco.
+  # As chaves vêm do .env desta pasta.
+  nlw-agents-server:
+    build: .
+    container_name: nlw-agents-server
+    profiles: ["app"]
+    ports:
+      - "3333:3333"
+    environment:
+      PORT: 3333
+      DATABASE_URL: postgresql://docker:docker@nlw-agents-pg:5432/agents
+      WEB_URL: ${WEB_URL:-http://localhost:5173}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?defina GEMINI_API_KEY no .env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      nlw-agents-pg:
+        condition: service_healthy
+
+volumes:
+  nlw-agents-pg-data:

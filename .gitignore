@@ -2,6 +2,9 @@
 node_modules/
 dist/
 
+# Ambiente
+.env
+
 # Python
 venv/
 __pycache__/
@@ -10,3 +13,6 @@ __pycache__/
 # Arquivos temporários
 tmp/
 *.log
+
+# Windows
+desktop.ini
