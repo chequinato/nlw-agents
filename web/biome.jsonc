@@ -1,0 +1,24 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.0.5/schema.json",
+  "extends": ["ultracite"],
+  "files": {
+    // O parser de CSS desta versão do Biome não conhece @theme/@apply do Tailwind 4
+    "includes": ["**", "!src/index.css"]
+  },
+  "javascript": {
+    "formatter": {
+      "semicolons": "asNeeded"
+    }
+  },
+  "overrides": [
+    {
+      // Componentes gerados pelo shadcn/ui seguem o padrão da própria lib
+      "includes": ["src/components/ui/**"],
+      "linter": {
+        "rules": {
+          "performance": { "noNamespaceImport": "off" }
+        }
+      }
+    }
+  ]
+}

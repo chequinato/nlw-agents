@@ -1,0 +1,29 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.0.5/schema.json",
+  "extends": ["ultracite"],
+  "javascript": {
+    "formatter": {
+      "semicolons": "asNeeded"
+    }
+  },
+  "overrides": [
+    {
+      // Scripts de linha de comando conversam com o terminal via console
+      "includes": ["src/scripts/**", "src/db/seed.ts", "src/db/migrate.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noConsole": "off" },
+          "nursery": { "noAwaitInLoop": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "performance": { "useTopLevelRegex": "off" }
+        }
+      }
+    }
+  ]
+}

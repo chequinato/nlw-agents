@@ -1,205 +1,108 @@
-NLW Agents 🤖🎧
+# NLW Agents
+
+Grave uma aula, deixe a IA transcrever e depois pergunte o que não ficou claro. As respostas vêm do que foi falado na gravação.
+
+O projeto nasceu no NLW Agents da Rocketseat e foi estendido com busca semântica de verdade (RAG com pgvector), resumo de aula, transcrição ao vivo e fallback entre provedores de IA.
+
+## Como funciona
+
+```
+Gravação (navegador)
+  |  trechos de 15 s via MediaRecorder
+  v
+POST /rooms/:id/audio
+  |  1. Gemini transcreve o áudio (ou Whisper local, se configurado)
+  |  2. Gemini gera o embedding do texto (768 dimensões)
+  |  3. texto + embedding vão para audio_chunks (Postgres + pgvector)
+  v
+POST /rooms/:id/questions
+  |  1. embedding da pergunta
+  |  2. busca os 5 trechos mais próximos por distância de cosseno (índice HNSW)
+  |  3. Gemini responde usando só esses trechos (OpenAI como fallback)
+  v
+Resposta salva e exibida na sala
+```
+
+Se a pergunta não tiver relação com o que foi gravado, a IA diz isso primeiro e só depois dá uma explicação geral, deixando claro que ela não veio da aula.
+
+## Funcionalidades
+
+- Salas por aula ou matéria, com contagem de perguntas e trechos gravados
+- Gravação no navegador com cronômetro e transcrição ao vivo de cada trecho
+- Perguntas respondidas com base nos trechos mais relevantes da gravação (RAG)
+- Resumo de estudo da aula: ideia central, tópicos e perguntas de revisão
+- Transcrição completa da sala, em ordem
+- Exclusão de sala em cascata (perguntas e áudios saem junto)
+- Documentação interativa da API em `/docs` (Swagger)
+
+## Estrutura
+
+```
+nlw-agents/
+  server/   API (Fastify, Drizzle, Postgres + pgvector, Gemini)
+  web/      Interface (React, Vite, TanStack Query, Tailwind, shadcn/ui)
+  9.mp3     Áudio de exemplo para testar o upload
+```
+
+## Rodando localmente
+
+Pré-requisitos: Node.js 20.6+, Docker e uma chave do Gemini ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)).
+
+```bash
+npm run setup          # instala server e web
+npm run db:up          # sobe o Postgres com pgvector
+cp server/.env.example server/.env   # e preencha GEMINI_API_KEY
+npm run db:migrate     # cria as tabelas
+```
+
+Em dois terminais:
+
+```bash
+npm run dev:server     # http://localhost:3333  (docs em /docs)
+npm run dev:web        # http://localhost:5173
+```
+
+Para conferir tudo de uma vez (lint, tipos, testes e build): `npm run check`.
+
+## Variáveis de ambiente (server/.env)
+
+| Variável | Obrigatória | Padrão | Para quê |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | sim | | Postgres com pgvector |
+| `GEMINI_API_KEY` | sim | | Transcrição, embeddings, respostas e resumo |
+| `PORT` | não | `3333` | Porta da API |
+| `WEB_URL` | não | `http://localhost:5173` | Origens liberadas no CORS (separe por vírgula) |
+| `GEMINI_MODEL` | não | `gemini-2.5-flash` | Modelo de texto |
+| `GEMINI_EMBEDDING_MODEL` | não | `gemini-embedding-001` | Modelo de embeddings |
+| `OPENAI_API_KEY` | não | | Liga o fallback para a OpenAI |
+| `OPENAI_MODEL` | não | `gpt-4o-mini` | Modelo do fallback |
+| `TRANSCRIPTION_PROVIDER` | não | `gemini` | `gemini` ou `whisper` (local) |
+
+O front lê `VITE_API_URL` (padrão `http://localhost:3333`).
+
+## Endpoints
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| GET | `/health` | Status da API e do banco |
+| GET | `/rooms` | Lista as salas |
+| POST | `/rooms` | Cria uma sala |
+| GET | `/rooms/:roomId` | Detalhes da sala |
+| DELETE | `/rooms/:roomId` | Apaga a sala e tudo dela |
+| GET | `/rooms/:roomId/questions` | Perguntas da sala |
+| POST | `/rooms/:roomId/questions` | Pergunta para a IA |
+| POST | `/rooms/:roomId/audio` | Envia um trecho de áudio (multipart, campo `file`) |
+| GET | `/rooms/:roomId/transcriptions` | Transcrição da sala |
+| POST | `/rooms/:roomId/summary` | Gera o resumo da aula |
+
+Exemplos prontos em [server/client.http](server/client.http).
+
+## Tecnologias
+
+**Backend:** Node.js, TypeScript, Fastify 5, Zod, Drizzle ORM, PostgreSQL 17 + pgvector, Google Gen AI SDK (Gemini), OpenAI SDK, Swagger, Biome, testes com `node:test`.
 
-Sistema de agentes inteligentes que permite criar salas, gravar áudio, transcrever aulas e conversas usando Gemini Embeddings e gerar respostas com Inteligência Artificial, tanto por voz quanto por texto.
+**Frontend:** React 19, Vite 7, TanStack Query 5, React Hook Form + Zod, React Router 7, Tailwind CSS 4, shadcn/ui.
 
-Este projeto nasceu com um propósito educacional muito claro: entender conceitos explicados em aulas gravadas. A ideia é transformar áudio em conhecimento estruturado, permitindo que o usuário faça perguntas depois e receba respostas baseadas exatamente no conteúdo que foi falado, mesmo que ele não tenha entendido tudo no momento da aula.
+## Licença
 
-────────────────────
-
-Visão Geral
-
-O NLW Agents é uma aplicação que combina voz, texto, banco de dados vetorial e inteligência artificial para criar experiências conversacionais baseadas em conteúdo falado.
-
-O sistema funciona a partir do conceito de salas. Dentro de uma sala, usuários podem gravar áudios (como aulas, explicações ou conversas). Esses áudios são processados, transcritos e armazenados como conhecimento. Depois disso, a IA consegue responder perguntas com base nesse conteúdo gravado.
-
-Na prática, o projeto transforma áudio em uma base de conhecimento pesquisável e inteligente.
-
-────────────────────
-
-Problema que o projeto resolve
-
-Conteúdos em áudio, como aulas e palestras, são difíceis de revisar depois. Não dá para buscar facilmente por um conceito específico, o conteúdo fica perdido no tempo e revisar horas de gravação é cansativo.
-
-O NLW Agents resolve esse problema ao:
-
-transformar áudio em texto
-
-gerar embeddings semânticos desse conteúdo
-
-armazenar tudo em banco de dados
-
-permitir perguntas por texto ou voz
-
-responder com base no que realmente foi falado na aula
-
-Ou seja, o áudio deixa de ser algo “morto” e vira conhecimento ativo.
-
-────────────────────
-
-Funcionalidades
-
-Criação e gerenciamento de salas
-Gravação de áudio pelos usuários
-Transcrição automática de áudio
-Geração de embeddings com Gemini
-Armazenamento dos embeddings no banco de dados
-Respostas de IA baseadas no conteúdo gravado
-Envio de perguntas por texto
-Manutenção de contexto por sala
-
-────────────────────
-
-Como a Inteligência Artificial funciona no projeto
-
-Fluxo de áudio (aulas gravadas):
-
-O usuário grava um áudio dentro de uma sala.
-Esse áudio é enviado ao backend.
-O Gemini transcreve o áudio para texto.
-O texto é convertido em embeddings vetoriais.
-Esses embeddings são armazenados no banco de dados.
-O conteúdo passa a fazer parte da memória da sala.
-
-Fluxo de perguntas por texto:
-
-O usuário envia uma pergunta escrita.
-A pergunta também é transformada em embedding.
-O sistema busca no banco os trechos mais relevantes da aula.
-A IA gera uma resposta baseada nesses trechos.
-
-Mesmo que o usuário não tenha entendido o conteúdo na hora da aula, ele pode perguntar depois e a IA explica com base no que foi gravado.
-
-────────────────────
-
-Banco de Dados
-
-O projeto utiliza PostgreSQL como banco de dados principal, junto com a extensão pgvector, que permite armazenar embeddings vetoriais.
-
-O Prisma ORM é utilizado para comunicação com o banco de dados, migrations e modelagem.
-
-São armazenados:
-
-Salas
-
-Mensagens
-
-Transcrições de áudio
-
-Embeddings vetoriais
-
-Contexto das conversas
-
-O uso de um banco vetorial é essencial para permitir busca semântica, onde a IA encontra informações pelo significado e não apenas por palavras exatas.
-
-────────────────────
-
-Tecnologias Utilizadas
-
-Backend:
-Node.js
-TypeScript
-Fastify ou Express
-WebSockets ou Socket.IO
-Prisma ORM
-PostgreSQL com pgvector
-dotenv
-
-Áudio:
-MediaRecorder API no frontend
-Streams e buffers do Node.js
-Processamento assíncrono de áudio
-
-Inteligência Artificial:
-Google Gemini API
-Gemini Embeddings
-Prompt engineering para controle de respostas
-Busca semântica baseada em vetores
-
-Outras ferramentas:
-CORS
-Nodemon ou ts-node
-ESLint e Prettier (se configurado)
-
-────────────────────
-
-Arquitetura do Projeto
-
-O projeto é organizado de forma modular, separando responsabilidades:
-
-Server: servidor HTTP e comunicação em tempo real
-Rooms: lógica de criação e gerenciamento de salas
-Database: schema Prisma, migrations e repositórios
-Services de IA: integração com Gemini e embeddings
-Services de áudio: processamento e transcrição
-Utils: funções auxiliares
-
-Essa separação facilita manutenção, escalabilidade e evolução do sistema.
-
-────────────────────
-
-Pré-requisitos
-
-Node.js versão 18 ou superior
-PostgreSQL com a extensão pgvector
-Conta com acesso à API do Gemini
-Gerenciador de pacotes npm ou yarn
-
-────────────────────
-
-Instalação
-
-Clonar o repositório
-Instalar dependências
-Configurar variáveis de ambiente
-Executar as migrations do banco
-Rodar o servidor em modo desenvolvimento
-
-────────────────────
-
-Variáveis de Ambiente
-
-PORT: porta da aplicação
-DATABASE_URL: URL de conexão com o PostgreSQL
-GEMINI_API_KEY: chave da API Gemini
-EMBEDDING_MODEL: modelo de embeddings utilizado
-LLM_MODEL: modelo de linguagem utilizado para respostas
-
-────────────────────
-
-Execução do Projeto
-
-Após configurar o ambiente e o banco de dados, basta rodar o projeto em modo desenvolvimento. O servidor ficará disponível localmente e pronto para receber áudios e perguntas.
-
-────────────────────
-
-Casos de Uso
-
-Estudo a partir de aulas gravadas
-Revisão de conteúdo educacional
-Assistente de aprendizado por voz
-Chat contextual baseado em áudio
-Ferramentas educacionais com IA
-
-────────────────────
-
-Roadmap e Evoluções Futuras
-
-Streaming de áudio em tempo real
-Persistência avançada de histórico
-Organização por matérias ou temas
-Escolha dinâmica de modelos de IA
-Deploy em produção
-Dashboard de métricas
-
-────────────────────
-
-Contribuição
-
-O projeto aceita contribuições. Basta criar um fork, desenvolver em uma branch separada e abrir um Pull Request.
-
-────────────────────
-
-Licença
-
-MIT License
-Projeto desenvolvido por Chequinato
+MIT. Projeto desenvolvido por Chequinato.

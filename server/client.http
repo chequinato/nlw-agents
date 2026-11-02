@@ -1,0 +1,83 @@
+# Requisições de exemplo (extensão REST Client do VS Code)
+@baseUrl = http://localhost:3333
+
+# Health check (inclui o banco)
+# @name healthCheck
+GET {{baseUrl}}/health
+
+###
+
+# Listar salas
+# @name getRooms
+GET {{baseUrl}}/rooms
+
+###
+
+# Criar sala
+# @name createRoom
+POST {{baseUrl}}/rooms
+Content-Type: application/json
+
+{
+  "name": "Sala de teste",
+  "description": "Essa é uma sala de teste"
+}
+
+###
+
+@roomId = {{createRoom.response.body.$.roomId}}
+
+###
+
+# Detalhes da sala
+# @name getRoom
+GET {{baseUrl}}/rooms/{{roomId}}
+
+###
+
+# Perguntas da sala
+# @name getRoomQuestions
+GET {{baseUrl}}/rooms/{{roomId}}/questions
+
+###
+
+# Fazer uma pergunta
+# @name createQuestion
+POST {{baseUrl}}/rooms/{{roomId}}/questions
+Content-Type: application/json
+
+{
+  "question": "O que é Vue.js e qual a diferença em relação ao Angular?"
+}
+
+###
+
+# Enviar um áudio (usa o 9.mp3 da raiz do repositório)
+# @name uploadAudio
+POST {{baseUrl}}/rooms/{{roomId}}/audio
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="9.mp3"
+Content-Type: audio/mpeg
+
+< ../9.mp3
+--boundary--
+
+###
+
+# Transcrição da sala
+# @name getTranscriptions
+GET {{baseUrl}}/rooms/{{roomId}}/transcriptions
+
+###
+
+# Resumo de estudo
+# @name createSummary
+POST {{baseUrl}}/rooms/{{roomId}}/summary
+
+###
+
+# Apagar sala (perguntas e áudios saem junto)
+# @name deleteRoom
+DELETE {{baseUrl}}/rooms/{{roomId}}
